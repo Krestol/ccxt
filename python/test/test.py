@@ -313,22 +313,32 @@ def test_exchange(exchange):
     #     except (ccxt.ExchangeError, ccxt.NotSupported) as e:
     #         dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
 
-    if exchange.has['fetchClosedOrders']:
-        time.sleep(exchange.rateLimit / 1000)
-        try:
-            closedOrderSymbol = 'TELOS/BTC'
-            orders = exchange.fetch_closed_orders(closedOrderSymbol)
-            dump(green(exchange.id), 'fetched', green(str(len(orders))), 'closed orders')
-        except (ccxt.ExchangeError, ccxt.NotSupported) as e:
-            dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
+    # if exchange.has['fetchClosedOrders']:
+    #     time.sleep(exchange.rateLimit / 1000)
+    #     try:
+    #         closedOrderSymbol = 'TELOS/BTC'
+    #         orders = exchange.fetch_closed_orders(closedOrderSymbol)
+    #         dump(green(exchange.id), 'fetched', green(str(len(orders))), 'closed orders')
+    #     except (ccxt.ExchangeError, ccxt.NotSupported) as e:
+    #         dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
 
 
-    if exchange.has['fetchMyTrades']:
+    # if exchange.has['fetchMyTrades']:
+    #     time.sleep(exchange.rateLimit / 1000)
+    #     try:            
+    #         openOrderSymbol = 'TELOS/BTC'
+    #         orders = exchange.fetch_my_trades(openOrderSymbol)
+    #         dump(green(exchange.id), 'fetched', green(str(len(orders))), 'trades')
+    #     except (ccxt.ExchangeError, ccxt.NotSupported) as e:
+    #         dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
+
+
+    if exchange.has['fetchDepositAddress']:
         time.sleep(exchange.rateLimit / 1000)
         try:            
             openOrderSymbol = 'TELOS/BTC'
-            orders = exchange.fetch_my_trades(openOrderSymbol)
-            dump(green(exchange.id), 'fetched', green(str(len(orders))), 'trades')
+            address = exchange.fetch_deposit_address('btc')
+            dump(green(exchange.id), 'fetched btc deposit address', green(address))
         except (ccxt.ExchangeError, ccxt.NotSupported) as e:
             dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
 

@@ -899,25 +899,21 @@ class graviex(Exchange):
     #         'fee': None,
     #     }
 
-    # def fetch_deposit_address(self, code, params={}):
-    #     self.load_markets()
-    #     currency = self.currency(code)
-    #     request = {
-    #         'asset': currency['id'],
-    #     }
-    #     response = self.wapiGetDepositAddress(self.extend(request, params))
-    #     success = self.safe_value(response, 'success')
-    #     if (success is None) or not success:
-    #         raise InvalidAddress(self.id + ' fetchDepositAddress returned an empty response – create the deposit address in the user settings first.')
-    #     address = self.safe_string(response, 'address')
-    #     tag = self.safe_string(response, 'addressTag')
-    #     self.check_address(address)
-    #     return {
-    #         'currency': code,
-    #         'address': self.check_address(address),
-    #         'tag': tag,
-    #         'info': response,
-    #     }
+    def fetch_deposit_address(self, code, params={}):
+        response = self.privateGetDepositAddress(self.extend ({
+            'currency': code.lower(),
+        }, params))
+
+        address = json.loads(response)
+        address = json.loads(address)
+        self.check_address(address)
+
+        return {
+            'currency': code,
+            'address': self.check_address(address),
+            'tag': None,
+            'info': response,
+        }
 
     # def fetch_funding_fees(self, codes=None, params={}):
     #     response = self.wapiGetAssetDetail(params)
@@ -999,52 +995,23 @@ class graviex(Exchange):
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
         
 
-    # def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
-    #     if (code == 418) or (code == 429):
-    #         raise DDoSProtection(self.id + ' ' + str(code) + ' ' + reason + ' ' + body)
-    #     # error response in a form: {"code": -1013, "msg": "Invalid quantity."}
-    #     # following block cointains legacy checks against message patterns in "msg" property
-    #     # will switch "code" checks eventually, when we know all of them
-    #     if code >= 400:
-    #         if body.find('Price * QTY is zero or less') >= 0:
-    #             raise InvalidOrder(self.id + ' order cost = amount * price is zero or less ' + body)
-    #         if body.find('LOT_SIZE') >= 0:
-    #             raise InvalidOrder(self.id + ' order amount should be evenly divisible by lot size ' + body)
-    #         if body.find('PRICE_FILTER') >= 0:
-    #             raise InvalidOrder(self.id + ' order price is invalid, i.e. exceeds allowed price precision, exceeds min price or max price limits or is invalid float value in general, use self.price_to_precision(symbol, amount) ' + body)
-    #     if len(body) > 0:
-    #         if body[0] == '{':
-    #             # check success value for wapi endpoints
-    #             # response in format {'msg': 'The coin does not exist.', 'success': True/false}
-    #             success = self.safe_value(response, 'success', True)
-    #             if not success:
-    #                 message = self.safe_string(response, 'msg')
-    #                 parsedMessage = None
-    #                 if message is not None:
-    #                     try:
-    #                         parsedMessage = json.loads(message)
-    #                     except Exception as e:
-    #                         # do nothing
-    #                         parsedMessage = None
-    #                     if parsedMessage is not None:
-    #                         response = parsedMessage
-    #             exceptions = self.exceptions
-    #             message = self.safe_string(response, 'msg')
-    #             if message in exceptions:
-    #                 ExceptionClass = exceptions[message]
-    #                 raise ExceptionClass(self.id + ' ' + message)
-    #             # checks against error codes
-    #             error = self.safe_string(response, 'code')
-    #             if error is not None:
-    #                 if error in exceptions:
-    #                     # a workaround for {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
-    #                     # despite that their message is very confusing, it is raised by Binance
-    #                     # on a temporary ban(the API key is valid, but disabled for a while)
-    #                     if (error == '-2015') and self.options['hasAlreadyAuthenticatedSuccessfully']:
-    #                         raise DDoSProtection(self.id + ' temporary banned: ' + body)
-    #                     raise exceptions[error](self.id + ' ' + body)
-    #                 else:
-    #                     raise ExchangeError(self.id + ' ' + body)
-    #             if not success:
-    #                 raise ExchangeError(self.id + ' ' + body)
+    def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        msg = 'Unknown error'
+        if code is 503 or code is 502:
+            raise ExchangeError('Exchange Overloaded')
+        
+        if response is not None and 'error' in response:
+            errorCode = self.safe_integer(response['error'], 'code')
+            if errorCode is not None:
+                msg = self.safe_string(response['error'], 'message')
+                if errorCode is 2002:
+                    raise InsufficientFunds(msg)
+                if errorCode is 2005 or errorCode is 2007:
+                    raise AuthenticationError(msg)
+                if errorCode is 1001:
+                    raise ExchangeError(msg)
 
+        if code is not 200:
+            raise ExchangeError('Invalid response from exchange: ' + msg)
+
+        return response
