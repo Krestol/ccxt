@@ -915,6 +915,14 @@ class graviex(Exchange):
             'info': response,
         }
 
+    def create_deposit_address(self, code, params = {}):
+        response = self.privateGetGenDepositAddress(self.extend({
+            'currency': code.lower(),
+        }, params))
+
+        response = json.loads(response)
+        return response
+
     # def fetch_funding_fees(self, codes=None, params={}):
     #     response = self.wapiGetAssetDetail(params)
     #     #

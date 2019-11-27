@@ -336,13 +336,19 @@ def test_exchange(exchange):
     if exchange.has['fetchDepositAddress']:
         time.sleep(exchange.rateLimit / 1000)
         try:            
-            openOrderSymbol = 'TELOS/BTC'
             address = exchange.fetch_deposit_address('btc')
             dump(green(exchange.id), 'fetched btc deposit address', green(address))
         except (ccxt.ExchangeError, ccxt.NotSupported) as e:
             dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
 
-            
+    if exchange.has['createDepositAddress']:
+        time.sleep(exchange.rateLimit / 1000)
+        try:            
+            address = exchange.create_deposit_address('btc')
+            dump(green(exchange.id), 'created new btc deposit address', green(address))
+        except (ccxt.ExchangeError, ccxt.NotSupported) as e:
+            dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
+
 
     # time.sleep(delay)
 
