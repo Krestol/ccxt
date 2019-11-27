@@ -430,92 +430,52 @@ class graviex(Exchange):
             }, params))
         return self.parse_trades(response, market, since, limit)
 
-    # def parse_order_status(self, status):
-    #     statuses = {
-    #         'NEW': 'open',
-    #         'PARTIALLY_FILLED': 'open',
-    #         'FILLED': 'closed',
-    #         'CANCELED': 'canceled',
-    #         'PENDING_CANCEL': 'canceling',  # currently unused
-    #         'REJECTED': 'rejected',
-    #         'EXPIRED': 'expired',
-    #     }
-    #     return self.safe_string(statuses, status, status)
+    def parse_order_status(self, status):
+        statuses = {
+            'wait': 'open',
+            'done': 'closed',
+            'cancel': 'canceled',
+        }
+        if status in statuses:
+            return statuses[status]        
+        return status
 
-    # def parse_order(self, order, market=None):
-    #     status = self.parse_order_status(self.safe_string(order, 'status'))
-    #     symbol = self.find_symbol(self.safe_string(order, 'symbol'), market)
-    #     timestamp = None
-    #     if 'time' in order:
-    #         timestamp = self.safe_integer(order, 'time')
-    #     elif 'transactTime' in order:
-    #         timestamp = self.safe_integer(order, 'transactTime')
-    #     price = self.safe_float(order, 'price')
-    #     amount = self.safe_float(order, 'origQty')
-    #     filled = self.safe_float(order, 'executedQty')
-    #     remaining = None
-    #     cost = self.safe_float(order, 'cummulativeQuoteQty')
-    #     if filled is not None:
-    #         if amount is not None:
-    #             remaining = amount - filled
-    #             if self.options['parseOrderToPrecision']:
-    #                 remaining = float(self.amount_to_precision(symbol, remaining))
-    #             remaining = max(remaining, 0.0)
-    #         if price is not None:
-    #             if cost is None:
-    #                 cost = price * filled
-    #     id = self.safe_string(order, 'orderId')
-    #     type = self.safe_string_lower(order, 'type')
-    #     if type == 'market':
-    #         if price == 0.0:
-    #             if (cost is not None) and (filled is not None):
-    #                 if (cost > 0) and (filled > 0):
-    #                     price = cost / filled
-    #                     if self.options['parseOrderToPrecision']:
-    #                         price = float(self.price_to_precision(symbol, price))
-    #     side = self.safe_string_lower(order, 'side')
-    #     fee = None
-    #     trades = None
-    #     fills = self.safe_value(order, 'fills')
-    #     if fills is not None:
-    #         trades = self.parse_trades(fills, market)
-    #         numTrades = len(trades)
-    #         if numTrades > 0:
-    #             cost = trades[0]['cost']
-    #             fee = {
-    #                 'cost': trades[0]['fee']['cost'],
-    #                 'currency': trades[0]['fee']['currency'],
-    #             }
-    #             for i in range(1, len(trades)):
-    #                 cost = self.sum(cost, trades[i]['cost'])
-    #                 fee['cost'] = self.sum(fee['cost'], trades[i]['fee']['cost'])
-    #     average = None
-    #     if cost is not None:
-    #         if filled:
-    #             average = cost / filled
-    #             if self.options['parseOrderToPrecision']:
-    #                 average = float(self.price_to_precision(symbol, average))
-    #         if self.options['parseOrderToPrecision']:
-    #             cost = float(self.cost_to_precision(symbol, cost))
-    #     return {
-    #         'info': order,
-    #         'id': id,
-    #         'timestamp': timestamp,
-    #         'datetime': self.iso8601(timestamp),
-    #         'lastTradeTimestamp': None,
-    #         'symbol': symbol,
-    #         'type': type,
-    #         'side': side,
-    #         'price': price,
-    #         'amount': amount,
-    #         'cost': cost,
-    #         'average': average,
-    #         'filled': filled,
-    #         'remaining': remaining,
-    #         'status': status,
-    #         'fee': fee,
-    #         'trades': trades,
-    #     }
+    def parse_order(self, order, market=None):
+        timestamp = self.safe_integer (order, 'at')
+        if timestamp is not None:
+            timestamp = int(timestamp * 1000)
+
+        symbol = None
+        marketId = self.safe_string (order, 'market')
+        market = self.safe_value(self.markets_by_id, marketId)
+        feeCurrency = None
+        if market is not None:
+            symbol = market['symbol']
+            feeCurrency = market['quote']
+
+        return {
+            'id': self.safe_string (order, 'id'),
+            'datetime': self.iso8601 (timestamp),
+            'timestamp': timestamp,
+            'lastTradeTimestamp': None,
+            'status': self.parse_order_status(self.safe_string (order, 'state')),
+            'symbol': symbol,
+            'type': self.safe_string(order, 'ord_type'),
+            'side': self.safe_string(order, 'side'),
+            'price': self.safe_float(order, 'price'),
+            'cost': None,
+            'average': self.safe_float(order, 'avg_price'),
+            'amount': self.safe_float(order, 'volume'),
+            'filled': self.safe_float(order, 'executed_volume'),
+            'remaining': self.safe_float(order, 'remaining_volume'),
+            'trades': self.safe_integer(order, 'trades_count'),
+            'fee': {
+                'currency': feeCurrency,
+                'cost': None,
+            },
+            'info': order,
+        }
+        
 
     # def create_order(self, symbol, type, side, amount, price=None, params={}):
     #     self.load_markets()
@@ -618,20 +578,41 @@ class graviex(Exchange):
     #     #
     #     return self.parse_orders(response, market, since, limit)
 
-    # def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
-    #     self.load_markets()
-    #     market = None
-    #     request = {}
-    #     if symbol is not None:
-    #         market = self.market(symbol)
-    #         request['symbol'] = market['id']
-    #     elif self.options['warnOnFetchOpenOrdersWithoutSymbol']:
-    #         symbols = self.symbols
-    #         numSymbols = len(symbols)
-    #         fetchOpenOrdersRateLimit = int(numSymbols / 2)
-    #         raise ExchangeError(self.id + ' fetchOpenOrders WARNING: fetching open orders without specifying a symbol is rate-limited to one call per ' + str(fetchOpenOrdersRateLimit) + ' seconds. Do not call self method frequently to avoid ban. Set ' + self.id + '.options["warnOnFetchOpenOrdersWithoutSymbol"] = False to suppress self warning message.')
-    #     response = self.privateGetOpenOrders(self.extend(request, params))
-    #     return self.parse_orders(response, market, since, limit)
+    def parse_order_status_re(self, status):
+        statuses = {
+            'open': 'wait',
+            'closed': 'done',
+            'canceled': 'cancel',
+        }
+        if status in statuses:
+            return statuses[status]
+        
+        return status
+
+    def fetch_orders_by_status(self, status, symbol = None, since = None, limit = None, params = {}):
+        self.load_markets()
+        symbol = 'X42/BTC'
+        pstatus = self.parse_order_status_re(status)
+
+        if limit is None:
+            limit = 100
+        
+        request = {
+            'page': 1,
+            'limit': limit,
+            'state': pstatus,
+        }
+
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+            request['market'] = market['id']
+
+        response = self.privateGetOrders(self.extend(request, params))
+        return self.parse_orders(response, market, since, limit)
+
+    def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
+        return self.fetch_orders_by_status('open', symbol, since, limit, params)
 
     # def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
     #     orders = self.fetch_orders(symbol, since, limit, params)
