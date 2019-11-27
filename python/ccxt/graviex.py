@@ -590,8 +590,7 @@ class graviex(Exchange):
         return status
 
     def fetch_orders_by_status(self, status, symbol = None, since = None, limit = None, params = {}):
-        self.load_markets()
-        symbol = 'X42/BTC'
+        self.load_markets()        
         pstatus = self.parse_order_status_re(status)
 
         if limit is None:
@@ -631,37 +630,21 @@ class graviex(Exchange):
     #     response = self.privateDeleteOrder(self.extend(request, params))
     #     return self.parse_order(response)
 
-    # def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
-    #     if symbol is None:
-    #         raise ArgumentsRequired(self.id + ' fetchMyTrades requires a symbol argument')
-    #     self.load_markets()
-    #     market = self.market(symbol)
-    #     request = {
-    #         'symbol': market['id'],
-    #     }
-    #     if since is not None:
-    #         request['startTime'] = since
-    #     if limit is not None:
-    #         request['limit'] = limit
-    #     response = self.privateGetMyTrades(self.extend(request, params))
-    #     #
-    #     #     [
-    #     #         {
-    #     #             "symbol": "BNBBTC",
-    #     #             "id": 28457,
-    #     #             "orderId": 100234,
-    #     #             "price": "4.00000100",
-    #     #             "qty": "12.00000000",
-    #     #             "commission": "10.10000000",
-    #     #             "commissionAsset": "BNB",
-    #     #             "time": 1499865549590,
-    #     #             "isBuyer": True,
-    #     #             "isMaker": False,
-    #     #             "isBestMatch": True,
-    #     #         }
-    #     #     ]
-    #     #
-    #     return self.parse_trades(response, market, since, limit)
+    def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
+        self.load_markets()
+        if limit is None:
+            limit = 100
+
+        request = {
+            'limit': limit,
+        }
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+            request['market'] = market['id']
+
+        response = self.privateGetTradesMy(self.extend(request, params))
+        return self.parse_trades(response, market, since, limit)
 
     # def fetch_my_dust_trades(self, symbol=None, since=None, limit=None, params={}):
     #     #

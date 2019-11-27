@@ -116,7 +116,7 @@ def test_order_book(exchange, symbol):
     if exchange.has['fetchOrderBook']:
         delay = int(exchange.rateLimit / 1000)
         time.sleep(delay)
-        # dump(green(exchange.id), green(symbol), 'fetching order book...')
+        dump(green(exchange.id), green(symbol), 'fetching order book...')
         orderbook = exchange.fetch_order_book(symbol)
         dump(
             green(exchange.id),
@@ -228,7 +228,6 @@ def test_trades(exchange, symbol):
 
 # ------------------------------------------------------------------------------
 
-
 def test_symbol(exchange, symbol):
     dump(green('SYMBOL: ' + symbol))
     test_ticker(exchange, symbol)
@@ -277,8 +276,8 @@ def test_exchange(exchange):
             symbol = s
             break
 
-    if symbol.find('.d') < 0:
-        test_symbol(exchange, symbol)
+    # if symbol.find('.d') < 0:
+    #     test_symbol(exchange, symbol)
 
     # ..........................................................................
     # private API
@@ -295,14 +294,33 @@ def test_exchange(exchange):
 
     time.sleep(exchange.rateLimit / 1000)
 
-    if exchange.has['fetchOrders']:
-        try:
-            orders = exchange.fetch_orders(symbol)
-            dump(green(exchange.id), 'fetched', green(str(len(orders))), 'orders')
+    # if exchange.has['fetchOrders']:
+    #     try:
+    #         orders = exchange.fetch_orders(symbol)
+    #         dump(green(exchange.id), 'fetched', green(str(len(orders))), 'orders')
+    #     except (ccxt.ExchangeError, ccxt.NotSupported) as e:
+    #         dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
+    #     # except ccxt.NotSupported as e:
+    #     #     dump(yellow(type(e).__name__), e.args)
+
+    
+    # if exchange.has['fetchOpenOrders']:
+    #     time.sleep(exchange.rateLimit / 1000)
+    #     try:
+    #         openOrderSymbol = 'X42/BTC'
+    #         orders = exchange.fetch_open_orders(openOrderSymbol)
+    #         dump(green(exchange.id), 'fetched', green(str(len(orders))), 'open orders')
+    #     except (ccxt.ExchangeError, ccxt.NotSupported) as e:
+    #         dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
+
+    if exchange.has['fetchMyTrades']:
+        time.sleep(exchange.rateLimit / 1000)
+        try:            
+            openOrderSymbol = 'TELOS/BTC'
+            orders = exchange.fetch_my_trades(openOrderSymbol)
+            dump(green(exchange.id), 'fetched', green(str(len(orders))), 'trades')
         except (ccxt.ExchangeError, ccxt.NotSupported) as e:
             dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
-        # except ccxt.NotSupported as e:
-        #     dump(yellow(type(e).__name__), e.args)
 
     # time.sleep(delay)
 
