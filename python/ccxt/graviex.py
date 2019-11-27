@@ -32,6 +32,7 @@ class graviex(Exchange):
                 'createLimitOrder': False,
                 'createDepositAddress': True,
                 'deposit': True,
+                # 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
                 'fetchTickers': True,
                 'fetchOHLCV': True,
@@ -62,8 +63,8 @@ class graviex(Exchange):
             'urls': {
                 'logo': '',
                 'api': {
-                    'public': 'https://graviex.net/api/v3',
-                    'private': 'https://graviex.net/api/v3',
+                    'public': 'https://graviex.net/api',
+                    'private': 'https://graviex.net/api',
                 },
                 'www': 'https://graviex.net',
                 'doc': 'https://graviex.net/documents/api_v3',
@@ -165,8 +166,8 @@ class graviex(Exchange):
             },
         })
 
-    # def nonce(self):
-    #     return self.milliseconds() - self.options['timeDifference']
+    def nonce(self):
+        return self.seconds()
 
     # def fetch_time(self, params={}):
     #     response = self.publicGetTime(params)
@@ -236,20 +237,29 @@ class graviex(Exchange):
     #         'cost': float(cost),
     #     }
 
-    # def fetch_balance(self, params={}):
-    #     self.load_markets()
-    #     response = self.privateGetAccount(params)
-    #     result = {'info': response}
-    #     balances = self.safe_value(response, 'balances', [])
-    #     for i in range(0, len(balances)):
-    #         balance = balances[i]
-    #         currencyId = balance['asset']
-    #         code = self.safe_currency_code(currencyId)
-    #         account = self.account()
-    #         account['free'] = self.safe_float(balance, 'free')
-    #         account['used'] = self.safe_float(balance, 'locked')
-    #         result[code] = account
-    #     return self.parse_balance(result)
+    def fetch_balance(self, params={}):
+        self.load_markets()
+        response = self.privateGetMembersMe()
+        result = {'info': response}
+        balances = response['accounts_filtered']
+        for i in range(0, len(balances)):
+            balance = balances[i]
+            currencyId = self.safe_string(balance, 'currency').upper()
+            currency = None
+            if currencyId in self.currencies_by_id:
+                currency = self.currencies_by_id[currencyId]['code']
+            else:
+                currency = self.common_currency_code(currencyId)
+            free = self.safe_float(balance, 'balance')
+            used = self.safe_float(balance, 'locked')
+            total = self.sum(free, used)
+            result[currency] = {
+                'free': free,
+                'used': used,
+                'total': total,
+            }
+
+        return self.parse_balance(result)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
         self.load_markets()
@@ -981,45 +991,29 @@ class graviex(Exchange):
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):        
         url = self.urls['api'][api]
-        url += '/' + path
-        if api == 'wapi':
-            url += '.html'
-        userDataStream = (path == 'userDataStream')
-        if path == 'historicalTrades':
-            headers = {
-                'X-MBX-APIKEY': self.apiKey,
-            }
-        elif userDataStream:
-            # v1 special case for userDataStream
-            body = self.urlencode(params)
-            headers = {
-                'X-MBX-APIKEY': self.apiKey,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        if (api == 'private') or (api == 'sapi') or (api == 'wapi' and path != 'systemStatus') or (api == 'fapiPrivate'):
-            self.check_required_credentials()
-            query = self.urlencode(self.extend({
-                'timestamp': self.nonce(),
-                'recvWindow': self.options['recvWindow'],
-            }, params))
-            signature = self.hmac(self.encode(query), self.encode(self.secret))
-            query += '&' + 'signature=' + signature
-            headers = {
-                'X-MBX-APIKEY': self.apiKey,
-            }
-            if (method == 'GET') or (method == 'DELETE') or (api == 'wapi'):
-                url += '?' + query
-            else:
-                body = query
-                headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        url += '/' + self.version + '/' + path
+        tonce = self.nonce()
+        params['tonce'] = str(tonce) + '000'
+
+        if self.apiKey is not None:
+            params['access_key'] = self.apiKey
+
+        keysort = self.keysort(params)
+
+        if api is not 'public':
+            signStr = method + '|' + url.replace('https://graviex.net', '') + '|' + self.urlencode(keysort)
+            signature = self.hmac(self.encode(signStr), self.encode(self.secret), 'sha256')
+            keysort['signature'] = signature
+        
+        paramEncoded = self.urlencode(keysort)
+
+        if method is 'POST':
+            body = paramEncoded
         else:
-            # userDataStream endpoints are public, but POST, PUT, DELETE
-            # therefore they don't accept URL query arguments
-            # https://github.com/ccxt/ccxt/issues/5224
-            if not userDataStream:
-                if params:
-                    url += '?' + self.urlencode(params)
+            url += '?' + paramEncoded
+
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
+        
 
     # def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
     #     if (code == 418) or (code == 429):
@@ -1070,9 +1064,3 @@ class graviex(Exchange):
     #             if not success:
     #                 raise ExchangeError(self.id + ' ' + body)
 
-    # def request(self, path, api='public', method='GET', params={}, headers=None, body=None):
-    #     response = self.fetch2(path, api, method, params, headers, body)
-    #     # a workaround for {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action."}
-    #     if (api == 'private') or (api == 'wapi'):
-    #         self.options['hasAlreadyAuthenticatedSuccessfully'] = True
-    #     return response
