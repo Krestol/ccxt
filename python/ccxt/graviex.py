@@ -613,9 +613,29 @@ class graviex(Exchange):
     def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         return self.fetch_orders_by_status('open', symbol, since, limit, params)
 
-    # def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
-    #     orders = self.fetch_orders(symbol, since, limit, params)
-    #     return self.filter_by(orders, 'status', 'closed')
+    def fetch_orders_by_status(self, status, symbol = None, since = None, limit = None, params = {}):
+        self.load_markets()
+        pstatus = self.parse_order_status_re(status)
+        if limit is None:
+            limit = 100
+
+        request = {
+            'page': 1,
+            'limit': limit,
+            'state': pstatus,
+        }
+
+        market = None
+
+        if symbol is not None:
+            market = self.market(symbol)
+            request['market'] = market['id']
+
+        response = self.privateGetOrders(self.extend(request, params))
+        return self.parse_orders(response, market, since, limit)
+
+    def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
+        return self.fetch_orders_by_status('closed', symbol, since, limit, params)
 
     # def cancel_order(self, id, symbol=None, params={}):
     #     if symbol is None:

@@ -313,6 +313,16 @@ def test_exchange(exchange):
     #     except (ccxt.ExchangeError, ccxt.NotSupported) as e:
     #         dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
 
+    if exchange.has['fetchClosedOrders']:
+        time.sleep(exchange.rateLimit / 1000)
+        try:
+            closedOrderSymbol = 'TELOS/BTC'
+            orders = exchange.fetch_closed_orders(closedOrderSymbol)
+            dump(green(exchange.id), 'fetched', green(str(len(orders))), 'closed orders')
+        except (ccxt.ExchangeError, ccxt.NotSupported) as e:
+            dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
+
+
     if exchange.has['fetchMyTrades']:
         time.sleep(exchange.rateLimit / 1000)
         try:            
@@ -321,6 +331,8 @@ def test_exchange(exchange):
             dump(green(exchange.id), 'fetched', green(str(len(orders))), 'trades')
         except (ccxt.ExchangeError, ccxt.NotSupported) as e:
             dump_error(yellow('[' + type(e).__name__ + ']'), e.args)
+
+            
 
     # time.sleep(delay)
 
