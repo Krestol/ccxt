@@ -351,179 +351,74 @@ class graviex(Exchange):
 
         return result
 
-    # def parse_ohlcv(self, ohlcv, market=None, timeframe='1m', since=None, limit=None):
-    #     return [
-    #         ohlcv[0],
-    #         float(ohlcv[1]),
-    #         float(ohlcv[2]),
-    #         float(ohlcv[3]),
-    #         float(ohlcv[4]),
-    #         float(ohlcv[5]),
-    #     ]
+    def parse_ohlcv(self, ohlcv, market=None, timeframe='5m', since=None, limit=None):
+        return [
+            ohlcv[0] * 1000,
+            float(ohlcv[1]),
+            float(ohlcv[2]),
+            float(ohlcv[3]),
+            float(ohlcv[4]),
+            float(ohlcv[5]),
+        ]
 
-    # def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
-    #     self.load_markets()
-    #     market = self.market(symbol)
-    #     request = {
-    #         'symbol': market['id'],
-    #         'interval': self.timeframes[timeframe],
-    #     }
-    #     if since is not None:
-    #         request['startTime'] = since
-    #     if limit is not None:
-    #         request['limit'] = limit  # default == max == 500
-    #     response = self.publicGetKlines(self.extend(request, params))
-    #     return self.parse_ohlcvs(response, market, timeframe, since, limit)
+    def fetch_ohlcv(self, symbol, timeframe='5m', since=None, limit=None, params={}):
+        self.load_markets()
+        market = self.market(symbol)
 
-    # def parse_trade(self, trade, market=None):
-    #     if 'isDustTrade' in trade:
-    #         return self.parse_dust_trade(trade, market)
-    #     #
-    #     # aggregate trades
-    #     # https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#compressedaggregate-trades-list
-    #     #
-    #     #     {
-    #     #         "a": 26129,         # Aggregate tradeId
-    #     #         "p": "0.01633102",  # Price
-    #     #         "q": "4.70443515",  # Quantity
-    #     #         "f": 27781,         # First tradeId
-    #     #         "l": 27781,         # Last tradeId
-    #     #         "T": 1498793709153,  # Timestamp
-    #     #         "m": True,          # Was the buyer the maker?
-    #     #         "M": True           # Was the trade the best price match?
-    #     #     }
-    #     #
-    #     # recent public trades and old public trades
-    #     # https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#recent-trades-list
-    #     # https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#old-trade-lookup-market_data
-    #     #
-    #     #     {
-    #     #         "id": 28457,
-    #     #         "price": "4.00000100",
-    #     #         "qty": "12.00000000",
-    #     #         "time": 1499865549590,
-    #     #         "isBuyerMaker": True,
-    #     #         "isBestMatch": True
-    #     #     }
-    #     #
-    #     # private trades
-    #     # https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md#account-trade-list-user_data
-    #     #
-    #     #     {
-    #     #         "symbol": "BNBBTC",
-    #     #         "id": 28457,
-    #     #         "orderId": 100234,
-    #     #         "price": "4.00000100",
-    #     #         "qty": "12.00000000",
-    #     #         "commission": "10.10000000",
-    #     #         "commissionAsset": "BNB",
-    #     #         "time": 1499865549590,
-    #     #         "isBuyer": True,
-    #     #         "isMaker": False,
-    #     #         "isBestMatch": True
-    #     #     }
-    #     #
-    #     timestamp = self.safe_integer_2(trade, 'T', 'time')
-    #     price = self.safe_float_2(trade, 'p', 'price')
-    #     amount = self.safe_float_2(trade, 'q', 'qty')
-    #     id = self.safe_string_2(trade, 'a', 'id')
-    #     side = None
-    #     orderId = self.safe_string(trade, 'orderId')
-    #     if 'm' in trade:
-    #         side = 'sell' if trade['m'] else 'buy'  # self is reversed intentionally
-    #     elif 'isBuyerMaker' in trade:
-    #         side = 'sell' if trade['isBuyerMaker'] else 'buy'
-    #     else:
-    #         if 'isBuyer' in trade:
-    #             side = 'buy' if trade['isBuyer'] else 'sell'  # self is a True side
-    #     fee = None
-    #     if 'commission' in trade:
-    #         fee = {
-    #             'cost': self.safe_float(trade, 'commission'),
-    #             'currency': self.safe_currency_code(self.safe_string(trade, 'commissionAsset')),
-    #         }
-    #     takerOrMaker = None
-    #     if 'isMaker' in trade:
-    #         takerOrMaker = 'maker' if trade['isMaker'] else 'taker'
-    #     symbol = None
-    #     if market is None:
-    #         marketId = self.safe_string(trade, 'symbol')
-    #         market = self.safe_value(self.markets_by_id, marketId)
-    #     if market is not None:
-    #         symbol = market['symbol']
-    #     return {
-    #         'info': trade,
-    #         'timestamp': timestamp,
-    #         'datetime': self.iso8601(timestamp),
-    #         'symbol': symbol,
-    #         'id': id,
-    #         'order': orderId,
-    #         'type': None,
-    #         'takerOrMaker': takerOrMaker,
-    #         'side': side,
-    #         'price': price,
-    #         'amount': amount,
-    #         'cost': price * amount,
-    #         'fee': fee,
-    #     }
+        if limit is None:
+            limit = 20
 
-    # def fetch_trades(self, symbol, since=None, limit=None, params={}):
-    #     self.load_markets()
-    #     market = self.market(symbol)
-    #     request = {
-    #         'symbol': market['id'],
-    #         # 'fromId': 123,    # ID to get aggregate trades from INCLUSIVE.
-    #         # 'startTime': 456,  # Timestamp in ms to get aggregate trades from INCLUSIVE.
-    #         # 'endTime': 789,   # Timestamp in ms to get aggregate trades until INCLUSIVE.
-    #         # 'limit': 500,     # default = 500, maximum = 1000
-    #     }
-    #     if self.options['fetchTradesMethod'] == 'publicGetAggTrades':
-    #         if since is not None:
-    #             request['startTime'] = since
-    #             request['endTime'] = self.sum(since, 3600000)
-    #     if limit is not None:
-    #         request['limit'] = limit  # default = 500, maximum = 1000
-    #     #
-    #     # Caveats:
-    #     # - default limit(500) applies only if no other parameters set, trades up
-    #     #   to the maximum limit may be returned to satisfy other parameters
-    #     # - if both limit and time window is set and time window contains more
-    #     #   trades than the limit then the last trades from the window are returned
-    #     # - 'tradeId' accepted and returned by self method is "aggregate" trade id
-    #     #   which is different from actual trade id
-    #     # - setting both fromId and time window results in error
-    #     method = self.safe_value(self.options, 'fetchTradesMethod', 'publicGetTrades')
-    #     response = getattr(self, method)(self.extend(request, params))
-    #     #
-    #     # aggregate trades
-    #     #
-    #     #     [
-    #     #         {
-    #     #             "a": 26129,         # Aggregate tradeId
-    #     #             "p": "0.01633102",  # Price
-    #     #             "q": "4.70443515",  # Quantity
-    #     #             "f": 27781,         # First tradeId
-    #     #             "l": 27781,         # Last tradeId
-    #     #             "T": 1498793709153,  # Timestamp
-    #     #             "m": True,          # Was the buyer the maker?
-    #     #             "M": True           # Was the trade the best price match?
-    #     #         }
-    #     #     ]
-    #     #
-    #     # recent public trades and historical public trades
-    #     #
-    #     #     [
-    #     #         {
-    #     #             "id": 28457,
-    #     #             "price": "4.00000100",
-    #     #             "qty": "12.00000000",
-    #     #             "time": 1499865549590,
-    #     #             "isBuyerMaker": True,
-    #     #             "isBestMatch": True
-    #     #         }
-    #     #     ]
-    #     #
-    #     return self.parse_trades(response, market, since, limit)
+        request = {
+            'market': market['id'],
+            'period': self.timeframes[timeframe],
+            'limit': limit
+        }
+
+        if since is not None:
+            if since > 9999999999:
+                since = int (since / 1000)
+            request['timestamp'] = since
+
+        response = self.publicGetK(self.extend(request, params))        
+        return self.parse_ohlcvs(response, market, timeframe, since, limit)
+
+    def parse_trade(self, trade, market=None):
+        timestamp = self.safe_integer(trade, 'at')
+        if timestamp is not None:
+            timestamp *= 1000
+
+        price = self.safe_float(trade, 'price')
+        amount = self.safe_float(trade, 'volume')
+        marketId = self.safe_string(trade, 'market')
+        symbol = None if market is None else market['symbol']
+        cost = self.cost_to_precision(symbol, price * amount)  
+
+        return {
+            'info': trade,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'symbol': symbol,
+            'id': self.safe_string(trade, 'id'),
+            'order': self.safe_string(trade, 'order_id'),
+            'type': None,
+            'side': self.safe_string(trade, 'side'),
+            'takerOrMaker': None,
+            'price': price,
+            'amount': amount,
+            'cost': cost,
+            'fee': None,
+        }
+
+    def fetch_trades(self, symbol, since=None, limit=None, params={}):
+        self.load_markets()
+        market = self.market(symbol)
+        if limit is None:
+            limit = 20
+        response = self.publicGetTrades (self.extend ({
+                'market': market['id'],
+                'limit': limit,
+            }, params))
+        return self.parse_trades(response, market, since, limit)
 
     # def parse_order_status(self, status):
     #     statuses = {
