@@ -501,21 +501,15 @@ class graviex(Exchange):
         self.orders[id] = order
         return order
 
-    # def fetch_order(self, id, symbol=None, params={}):
-    #     if symbol is None:
-    #         raise ArgumentsRequired(self.id + ' fetchOrder requires a symbol argument')
-    #     self.load_markets()
-    #     market = self.market(symbol)
-    #     origClientOrderId = self.safe_value(params, 'origClientOrderId')
-    #     request = {
-    #         'symbol': market['id'],
-    #     }
-    #     if origClientOrderId is not None:
-    #         request['origClientOrderId'] = origClientOrderId
-    #     else:
-    #         request['orderId'] = int(id)
-    #     response = self.privateGetOrder(self.extend(request, params))
-    #     return self.parse_order(response, market)
+    def fetch_order(self, id, symbol=None, params={}):        
+        self.load_markets()
+        market = self.market(symbol)
+        origClientOrderId = self.safe_value(params, 'origClientOrderId')
+        request = {
+            'id': id,
+        }        
+        response = self.privateGetOrder(self.extend(request, params))
+        return self.parse_order(response, market)
 
     # def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
     #     if symbol is None:
@@ -613,18 +607,11 @@ class graviex(Exchange):
     def fetch_closed_orders(self, symbol=None, since=None, limit=None, params={}):
         return self.fetch_orders_by_status('closed', symbol, since, limit, params)
 
-    # def cancel_order(self, id, symbol=None, params={}):
-    #     if symbol is None:
-    #         raise ArgumentsRequired(self.id + ' cancelOrder requires a symbol argument')
-    #     self.load_markets()
-    #     market = self.market(symbol)
-    #     request = {
-    #         'symbol': market['id'],
-    #         'orderId': int(id),
-    #         # 'origClientOrderId': id,
-    #     }
-    #     response = self.privateDeleteOrder(self.extend(request, params))
-    #     return self.parse_order(response)
+    def cancel_order(self, id, symbol=None, params={}):
+        self.privatePostOrderDelete(self.extend({
+            'id': id,
+        }, params))
+        return self.fetch_order(id, symbol)
 
     def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
