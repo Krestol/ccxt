@@ -184,6 +184,7 @@ class graviex(Exchange):
         # ids = response.keys()
         result = []
         for id in response:
+            
             # id = ids[i]
             market = response[id]
             api = self.safe_value (market, 'api')
@@ -198,6 +199,9 @@ class graviex(Exchange):
             base = self.safe_currency_code(baseId)
             quote = self.safe_currency_code(quoteId)
             symbol = self.safe_string(market, 'name')
+            if 'GIO/BTC' == symbol:
+                print(market)
+
             result.append(self.extend(self.fees['trading'], {
                 'info': market,
                 'id': id,
@@ -477,53 +481,25 @@ class graviex(Exchange):
         }
         
 
-    # def create_order(self, symbol, type, side, amount, price=None, params={}):
-    #     self.load_markets()
-    #     market = self.market(symbol)
-    #     # the next 5 lines are added to support for testing orders
-    #     method = 'privatePostOrder'
-    #     test = self.safe_value(params, 'test', False)
-    #     if test:
-    #         method += 'Test'
-    #         params = self.omit(params, 'test')
-    #     uppercaseType = type.upper()
-    #     newOrderRespType = self.safe_value(self.options['newOrderRespType'], type, 'RESULT')
-    #     request = {
-    #         'symbol': market['id'],
-    #         'quantity': self.amount_to_precision(symbol, amount),
-    #         'type': uppercaseType,
-    #         'side': side.upper(),
-    #         'newOrderRespType': newOrderRespType,  # 'ACK' for order id, 'RESULT' for full order or 'FULL' for order with fills
-    #     }
-    #     timeInForceIsRequired = False
-    #     priceIsRequired = False
-    #     stopPriceIsRequired = False
-    #     if uppercaseType == 'LIMIT':
-    #         priceIsRequired = True
-    #         timeInForceIsRequired = True
-    #     elif (uppercaseType == 'STOP_LOSS') or (uppercaseType == 'TAKE_PROFIT'):
-    #         stopPriceIsRequired = True
-    #     elif (uppercaseType == 'STOP_LOSS_LIMIT') or (uppercaseType == 'TAKE_PROFIT_LIMIT'):
-    #         stopPriceIsRequired = True
-    #         priceIsRequired = True
-    #         timeInForceIsRequired = True
-    #     elif uppercaseType == 'LIMIT_MAKER':
-    #         priceIsRequired = True
-    #     if priceIsRequired:
-    #         if price is None:
-    #             raise InvalidOrder(self.id + ' createOrder method requires a price argument for a ' + type + ' order')
-    #         request['price'] = self.price_to_precision(symbol, price)
-    #     if timeInForceIsRequired:
-    #         request['timeInForce'] = self.options['defaultTimeInForce']  # 'GTC' = Good To Cancel(default), 'IOC' = Immediate Or Cancel
-    #     if stopPriceIsRequired:
-    #         stopPrice = self.safe_float(params, 'stopPrice')
-    #         if stopPrice is None:
-    #             raise InvalidOrder(self.id + ' createOrder method requires a stopPrice extra param for a ' + type + ' order')
-    #         else:
-    #             params = self.omit(params, 'stopPrice')
-    #             request['stopPrice'] = self.price_to_precision(symbol, stopPrice)
-    #     response = getattr(self, method)(self.extend(request, params))
-    #     return self.parse_order(response, market)
+    def create_order(self, symbol, ordType, side, amount, price=None, params={}):
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'market': market['id'],
+            'volume': self.amount_to_precision(symbol, amount),
+            'side': side,
+        }
+
+        if price is not None:
+            request['price'] = price
+        if ordType is not None:
+            request['ord_type'] = ordType
+
+        response = self.privatePostOrders(self.extend(request, params))
+        order = self.parse_order(response, market)
+        id = self.safe_string(order, 'id')
+        self.orders[id] = order
+        return order
 
     # def fetch_order(self, id, symbol=None, params={}):
     #     if symbol is None:
@@ -980,14 +956,14 @@ class graviex(Exchange):
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):        
         url = self.urls['api'][api]
         url += '/' + self.version + '/' + path
-        tonce = self.nonce()
-        params['tonce'] = str(tonce) + '000'
+        tonce = self.nonce() + 10
 
         if self.apiKey is not None:
             params['access_key'] = self.apiKey
 
+        params['tonce'] = str(tonce) + '000'
         keysort = self.keysort(params)
-
+        
         if api is not 'public':
             signStr = method + '|' + url.replace('https://graviex.net', '') + '|' + self.urlencode(keysort)
             signature = self.hmac(self.encode(signStr), self.encode(self.secret), 'sha256')
@@ -1005,21 +981,21 @@ class graviex(Exchange):
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
         msg = 'Unknown error'
-        if code is 503 or code is 502:
+        if code == 503 or code == 502:
             raise ExchangeError('Exchange Overloaded')
         
         if response is not None and 'error' in response:
             errorCode = self.safe_integer(response['error'], 'code')
             if errorCode is not None:
                 msg = self.safe_string(response['error'], 'message')
-                if errorCode is 2002:
+                if errorCode == 2002:
                     raise InsufficientFunds(msg)
-                if errorCode is 2005 or errorCode is 2007:
+                if errorCode == 2005 or errorCode is 2007:
                     raise AuthenticationError(msg)
-                if errorCode is 1001:
+                if errorCode == 1001:
                     raise ExchangeError(msg)
 
-        if code is not 200:
+        if code != 200 and code != 201:
             raise ExchangeError('Invalid response from exchange: ' + msg)
 
         return response
