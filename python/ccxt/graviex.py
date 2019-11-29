@@ -211,8 +211,6 @@ class graviex(Exchange):
                 'baseId': baseId,
                 'quoteId': quoteId,
                 'active': active,
-                'taker': None,
-                'maker': None,
                 'limits': {
                     'amount': {
                         'min': minamount,
