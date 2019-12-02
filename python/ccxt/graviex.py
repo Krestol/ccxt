@@ -277,12 +277,10 @@ class graviex(Exchange):
             'info': info,
         }
 
-
     def fetch_ticker(self, symbol, params = {}):
         self.load_markets()
         symbols = { symbol}
         return self.fetch_tickers(symbols, params)
-
 
     def fetch_tickers(self, symbols = None, params = {}):
         self.load_markets()
@@ -412,8 +410,7 @@ class graviex(Exchange):
                 'cost': None,
             },
             'info': order,
-        }
-        
+        }        
 
     def create_order(self, symbol, ordType, side, amount, price = None, params = {}):
         self.load_markets()
@@ -532,8 +529,7 @@ class graviex(Exchange):
             body = paramEncoded
         else:
             url += '?' + paramEncoded
-        return {'url': url, 'method': method, 'body': body, 'headers': headers}
-        
+        return {'url': url, 'method': method, 'body': body, 'headers': headers}        
 
     def handle_errors(self, code, reason, url, method, headers, body, response, requestHeaders, requestBody):
         msg = 'Unknown error'
