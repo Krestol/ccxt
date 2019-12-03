@@ -18,6 +18,8 @@ from ccxt.base.errors import ExchangeNotAvailable
 from ccxt.base.errors import InvalidNonce
 from ccxt.base.decimal_to_precision import ROUND
 
+import dateutil.parser
+
 
 class birake(Exchange):
 
@@ -27,22 +29,19 @@ class birake(Exchange):
             'name': 'Birake',
             'countries': ['NZ', 'EE'],  # Japan, Malta
             'rateLimit': 500,
-            'certified': True,
+            'certified': True,            
             'has': {
                 'CORS': False,
                 'fetchBidsAsks': True,
+                'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
-                'fetchOHLCV': True,
                 'fetchMyTrades': True,
-                'fetchOrder': True,
-                'fetchOrders': True,
                 'fetchOpenOrders': True,
                 'fetchClosedOrders': True,
-                'fetchFundingFees': True,
             },
             'urls': {
-                'logo': '',
+                'logo': 'https://trade.birake.com/logos/birake.png',
                 'api': {
                     'public': 'https://api.birake.com/public',
                     'private': 'https://api.birake.com/private',
@@ -56,21 +55,12 @@ class birake(Exchange):
                     'get': [
                         'assets',
                         'markets',
-                        'depth',
+                        'depth/{symbol}',
+                        'trades/{market}',
                         'ticker',
                     ],
                 },
                 'private': {
-                    'get': [
-                        'allOrderList',  
-                        'openOrderList',
-                        'orderList',
-                        'order',
-                        'openOrders',
-                        'allOrders',
-                        'account',
-                        'myTrades',
-                    ],
                     'post': [
                         'balances',
                         'history',
@@ -88,10 +78,248 @@ class birake(Exchange):
                     'taker': 0.0015,
                     'maker': 0.0015,
                 },
-            },            
+            },
+            'precision': {
+                'amount': 8,
+                'price': 8,
+            },           
         })
 
     def nonce(self):
         return self.milliseconds()
 
-    
+    def fetch_markets(self, params = {}):
+        response = self.publicGetTicker(params)
+        result = []
+        for market in response:
+            symbol = self.safe_string(market, 'tradingPairs')
+            api = self.safe_value (market, 'tradingUrl')
+            ids = symbol.split('_', 2)
+            quoteId = ids[0].upper()
+            baseId = ids[1].upper()
+            base = self.safe_currency_code(baseId)
+            quote = self.safe_currency_code(quoteId)
+
+            result.append(self.extend(self.fees['trading'], {
+                'info': market,
+                'id': symbol,
+                'symbol': symbol,
+                'base': base,
+                'quote': quote,
+                'baseId': baseId,
+                'quoteId': quoteId,
+                'active': True,
+                'limits': {
+                    'amount': {
+                        'min': None,
+                        'max': None,
+                    },
+                },
+            }))
+        return result
+
+    def parse_ticker(self, ticker, market = None):
+        dateTime = self.safe_string(ticker, 'lastUpdateTimestamp')
+        date = dateutil.parser.parse(dateTime)
+        timestamp = int(date.timestamp() * 1000)
+        symbol = self.safe_string(market, 'symbol')
+        info = ticker
+        return {
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'high': self.safe_float(ticker, 'highestBid'),
+            'low': self.safe_float(ticker, 'lowestAsk'),
+            'bid': self.safe_float(ticker, 'highestBid'),
+            'bidVolume': None,
+            'ask': self.safe_float(ticker, 'lowestAsk'),
+            'askVolume': None,
+            'vwap': None,
+            'open': None,
+            'close': None,
+            'last': self.safe_float(ticker, 'lastPrice'),
+            'previousClose': None,
+            'change': None,
+            'percentage': None,
+            'average': None,
+            'baseVolume': self.safe_float (ticker, 'baseVolume24h'),
+            'quoteVolume': self.safe_float (ticker, 'quoteVolume24h'),
+            'info': info,
+        }
+
+    def fetch_ticker(self, symbol, params = {}):
+        tickers = self.fetch_tickers(symbol, params)
+        if symbol in tickers:
+            return tickers[symbol]
+        return None
+
+    def fetch_tickers(self, symbol = None, params = {}):
+        self.load_markets()
+        response = self.publicGetTicker(params)
+        result = {}
+        for entry in response:
+            marketId = self.safe_string(entry, 'tradingPairs')
+            market = self.markets_by_id[marketId]
+            if symbol is not None :
+                if market['symbol'] == symbol:
+                    result[symbol] = self.parse_ticker(entry, market)
+                    break
+            else:
+                result[market['symbol']] = self.parse_ticker(entry, market)
+
+        return result
+
+    def fetch_order_book(self, symbol, limit = None, params = {}):
+        self.load_markets()
+        request = {
+            'symbol': symbol,
+        }
+        response = self.publicGetDepthSymbol(self.extend(request, params))
+        return self.parse_order_book(response, None, 'buys', 'sells', 'price', 'amount') 
+
+    def fetch_trades(self, symbol, since = None, limit = None, params = {}):
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'market': market['id'],
+        }
+        response = self.publicGetTradesMarket(self.extend(request, params))
+        return self.parse_trades(response, market, since, limit)
+
+    def parse_trade(self, trade, market=None):
+        dateTime = self.safe_string(trade, 'time')
+        date = dateutil.parser.parse(dateTime)
+        timestamp = int(date.timestamp() * 1000)        
+        price = self.safe_float(trade, 'price')
+        amount = self.safe_float(trade, 'volume')
+        marketId = self.safe_string(trade, 'marketPair')
+        market = self.safe_value (self.markets_by_id, marketId, market)
+        symbol = None if market is None else market['symbol']
+        cost = self.cost_to_precision(symbol, price * amount)  
+        return {
+            'info': trade,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'symbol': symbol,
+            'id': self.safe_string(trade, 'id'),
+            'order': self.safe_string(trade, 'tradeId'),
+            'type': self.safe_string(trade, 'type'),
+            'side': None,
+            'takerOrMaker': 'maker' if trade['isBuyerMaker'] else 'taker' ,
+            'price': price,
+            'amount': amount,
+            'cost': cost,
+            'fee': None,
+        }
+
+    def fetch_balance(self, params = {}):
+        self.load_markets()
+        response = self.privatePostBalances(params)
+        result = {}
+        for balance in response:
+            currencyId = self.safe_string(balance, 'symbol').upper()
+            currency = None
+            if currencyId in self.currencies_by_id:
+                currency = self.currencies_by_id[currencyId]['code']
+            else:
+                currency = self.common_currency_code(currencyId)
+            free = self.safe_float(balance, 'amount')
+            result[currency] = {
+                'free': free,
+                'used': None,
+                'total': free,
+            }
+
+        return self.parse_balance(result)
+
+
+    def fetch_open_orders(self, symbol = None, since = None, limit = None, params = {}):
+        self.load_markets()
+        response = self.privatePostOpenorders(params)
+        for order in response:
+            order['status']: 'wait'
+        market = None
+        return self.parse_orders(response, market, since, limit)
+
+    def parse_order(self, order, market = None):
+        symbol = None
+        marketId = self.safe_string(order, 'market')
+        market = self.safe_value(self.markets_by_id, marketId)
+        feeCurrency = None
+        if market is not None:
+            symbol = market['symbol']
+            feeCurrency = market['quote']
+
+        return {
+            'id': self.safe_string (order, 'id'),
+            'datetime': None,
+            'timestamp': None,
+            'lastTradeTimestamp': None,
+            'status': self.safe_string(order, 'status'),
+            'symbol': symbol,
+            'type': self.safe_string(order, 'type'),
+            'side': None,
+            'price': self.safe_float(order, 'price'),
+            'cost': None,
+            'average': None,
+            'amount': self.safe_float(order, 'amount'),
+            'filled': None,
+            'remaining': None,
+            'trades': None,
+            'fee': {
+                'currency': feeCurrency,
+                'cost': None,
+            },
+            'info': order,
+        }    
+
+    def fetch_closed_orders(self, symbol = None, since = None, limit = None, params = {}):
+        self.load_markets()
+        response = self.privatePostHistory(params)
+        for order in response:
+            order['status']: 'closed'
+        market = None
+        
+        return self.parse_orders(response, market, since, limit)
+
+    def create_order(self, symbol, ordType, side, amount, price = None, params = {}):
+        self.load_markets()
+        market = self.market(symbol)
+        params = 'market={}&amount={}&type={}&price={}'.format(
+            market['id'],
+            self.amount_to_precision(symbol, amount),
+            ordType,
+            price)        
+
+        response = self.privatePostAddorder(params)
+        openedOrders = self.safe_value(response, 'open')
+        order = None
+        if openedOrders is not None and isinstance(openedOrders, list):
+            order = openedOrders[0]
+        order = self.parse_order(order, market)        
+        id = self.safe_string(order, 'id')
+        self.orders[id] = order
+        return order    
+
+    def cancel_order(self, id, symbol = None, params = {}):
+        params = "orderId={}".format(id)
+        response = self.privatePostCancel(params)
+        return response 
+
+    def sign(self, path, api = 'public', method = 'GET', params = {}, headers = None, body = None):
+        url = self.urls['api'][api]
+        if path == 'addOrder' or path == 'cancel':
+            url += '/' + 'v4'
+            body = params            
+        elif path != 'balances' and path != 'openorders' and path != 'history':
+            url += '/' + 'v3'
+        
+        url += '/' +  self.implode_params(path, params)
+
+        if api is not 'public':
+            headers = {
+                "birake-user": self.user,
+                "birake-authorization": self.authorization,
+                'Content-Type': "application/x-www-form-urlencoded"
+            }
+        return {'url': url, 'method': method, 'body': body, 'headers': headers}
