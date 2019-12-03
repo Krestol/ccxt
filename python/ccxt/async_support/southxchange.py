@@ -5,6 +5,9 @@
 
 from ccxt.async_support.base.exchange import Exchange
 import hashlib
+import time
+import datetime
+import arrow
 
 
 class southxchange(Exchange):
@@ -36,6 +39,7 @@ class southxchange(Exchange):
                         'prices',
                         'book/{symbol}',
                         'trades/{symbol}',
+                        'history/{params}/{start}/{end}/{periods}',
                     ],
                 },
                 'private': {
@@ -330,3 +334,26 @@ class southxchange(Exchange):
                 'Hash': self.hmac(self.encode(body), self.encode(self.secret), hashlib.sha512),
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
+
+    async def fetch_ohlcvs(self, symbol, timeframe='1m', since=None, limit=500, params={}):
+        end = int(time.time() * 1000)
+        timeframe_msecs = Exchange.parse_timeframe(timeframe) * 1000
+        request = {
+            'params': symbol,
+            'start': int(end - timeframe_msecs * limit - timeframe_msecs),
+            'end': end,
+            'periods': limit
+        }
+        ohlcvs = await self.publicGetHistoryParamsStartEndPeriods(self.extend(request, {}))
+
+        result = []
+        for i in range(0, len(ohlcvs)):
+            timestamp = arrow.get(ohlcvs[i]["Date"]).timestamp * 1000
+            close = ohlcvs[i]["PriceClose"]
+            high = ohlcvs[i]["PriceHigh"]
+            low = ohlcvs[i]["PriceLow"]
+            open = ohlcvs[i]["PriceOpen"]
+            volume = ohlcvs[i]["Volume"]
+            result.append([timestamp,open,high,low,close,volume])
+
+        return result
