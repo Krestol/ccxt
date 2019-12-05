@@ -280,6 +280,13 @@ class southxchange(Exchange):
         return {
             'info': response,
             'id': str(response),
+            'symbol': symbol,
+            'type': type,
+            'side': side,
+            'price': price,
+            'amount': amount,
+            'status': 'open',
+            'fee': None,
         }
 
     def cancel_order(self, id, symbol=None, params={}):
