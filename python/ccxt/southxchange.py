@@ -261,7 +261,7 @@ class southxchange(Exchange):
         response = self.privatePostListOrders(params)
         orders = self.parse_orders(response, market, since, limit)
         for order in orders:
-            if order['id'] == id:
+            if id.find(order['id']) != -1:
                 return order
         raise InvalidOrder('Warning: Order id ' + id + ' is not found in open orders. Maybe the order is already closed.')
     
