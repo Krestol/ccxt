@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+from ccxt.base.errors import InvalidOrder
 import hashlib
 import time
 import datetime
@@ -256,6 +257,16 @@ class southxchange(Exchange):
         response = await self.privatePostListOrders(params)
         return self.parse_orders(response, market, since, limit)
 
+    async def fetch_order(self, id, symbol=None, since=None, limit=None, params={}):
+        await self.load_markets()
+        market = self.market(symbol)
+        response = await self.privatePostListOrders(params)
+        orders = self.parse_orders(response, market, since, limit)
+        for order in orders:
+            if order.id == id:
+                return order
+        raise InvalidOrder('Warning: Order id ' + id + ' is not found in open orders. Maybe the order is already closed.')
+    
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
