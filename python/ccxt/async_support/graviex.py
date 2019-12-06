@@ -34,7 +34,6 @@ class graviex(Exchange):
                 'createLimitOrder': False,
                 'createDepositAddress': True,
                 'deposit': True,
-                # 'fetchCurrencies': True,
                 'fetchDepositAddress': True,
                 'fetchTickers': True,
                 'fetchOHLCV': True,
@@ -128,7 +127,7 @@ class graviex(Exchange):
             'fees': {
                 'trading': {
                     'percentage': True,
-                    'maker': 0.0,
+                    'maker': 0.2 / 100,
                     'taker': 0.2 / 100,
                 },
                 'funding': {
@@ -231,7 +230,9 @@ class graviex(Exchange):
 
         return self.parse_balance(result)
 
-    async def fetch_order_book(self, symbol, limit = 20, params = {}):
+    async def fetch_order_book(self, symbol, limit = None, params = {}):
+        if limit is None:
+            limit = 20
         await self.load_markets()
         request = {
             'market': self.market_id (symbol),
@@ -315,7 +316,9 @@ class graviex(Exchange):
             float(ohlcv[5]),
         ]
 
-    async def fetch_ohlcv(self, symbol, timeframe = '5m', since = None, limit = 1000, params = {}):
+    async def fetch_ohlcv(self, symbol, timeframe = '5m', since = None, limit = None, params = {}):
+        if limit is None:
+            limit = 1000
         await self.load_markets()
         market = self.market(symbol)
         request = {
@@ -357,6 +360,8 @@ class graviex(Exchange):
         }
 
     async def fetch_trades(self, symbol, since = None, limit = 20, params = {}):
+        if limit is None:
+            limit = 1000
         await self.load_markets()
         market = self.market(symbol)
         response = await self.publicGetTrades (self.extend ({
@@ -388,6 +393,8 @@ class graviex(Exchange):
             symbol = market['symbol']
             feeCurrency = market['quote']
 
+        fee = self.calculate_fee(symbol, self.safe_string(order, 'ord_type'), self.safe_string(order, 'side'), self.safe_float(order, 'volume'), self.safe_float(order, 'price'))
+
         return {
             'id': self.safe_string (order, 'id'),
             'datetime': self.iso8601 (timestamp),
@@ -404,10 +411,7 @@ class graviex(Exchange):
             'filled': self.safe_float(order, 'executed_volume'),
             'remaining': self.safe_float(order, 'remaining_volume'),
             'trades': self.safe_integer(order, 'trades_count'),
-            'fee': {
-                'currency': feeCurrency,
-                'cost': None,
-            },
+            'fee': fee,
             'info': order,
         }
 
@@ -451,7 +455,9 @@ class graviex(Exchange):
         
         return status
 
-    async def fetch_orders_by_status(self, status, symbol = None, since = None, limit = 100, params = {}):
+    async def fetch_orders_by_status(self, status, symbol = None, since = None, limit = None, params = {}):
+        if limit is None:
+            limit = 100
         await self.load_markets()        
         pstatus = self.parse_order_status_re(status)        
         request = {
@@ -478,7 +484,9 @@ class graviex(Exchange):
         }, params))
         return await self.fetch_order(id, symbol)
 
-    async def fetch_my_trades(self, symbol = None, since = None, limit = 100, params = {}):
+    async def fetch_my_trades(self, symbol = None, since = None, limit = None, params = {}):
+        if limit is None:
+            limit = 100
         await self.load_markets()
         request = {
             'limit': limit,
@@ -510,6 +518,17 @@ class graviex(Exchange):
         }, params))
         response = json.loads(response)
         return response
+
+    def calculate_fee(self, symbol, type, side, amount, price, takerOrMaker='taker', params={}):
+        self.load_markets()
+        market = self.markets[symbol]
+        rate = market[takerOrMaker]
+        return {
+            'rate': rate,
+            'type': takerOrMaker,
+            'currency': market['base'],
+            'cost': float(self.fee_to_precision(symbol, rate * amount)),
+        }
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.urls['api'][api]
