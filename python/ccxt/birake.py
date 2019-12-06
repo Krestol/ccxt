@@ -36,7 +36,7 @@ class birake(Exchange):
                 'fetchTicker': True,
                 'fetchTickers': True,
                 'fetchTime': True,
-                'fetchMyTrades': True,
+                'fetchMyTrades': False,
                 'fetchOpenOrders': True,
                 'fetchClosedOrders': True,
             },
@@ -115,6 +115,7 @@ class birake(Exchange):
                         'max': None,
                     },
                 },
+                'precision': self.precision
             }))
         return result
 
@@ -256,22 +257,19 @@ class birake(Exchange):
             'timestamp': None,
             'lastTradeTimestamp': None,
             'status': self.safe_string(order, 'status'),
-            'symbol': symbol,
-            'type': self.safe_string(order, 'type'),
-            'side': None,
+            'symbol': marketId,
+            'type': 'limit',
+            'side': self.safe_string(order, 'type'),
             'price': self.safe_float(order, 'price'),
             'cost': None,
             'average': None,
             'amount': self.safe_float(order, 'amount'),
             'filled': None,
-            'remaining': None,
+            'remaining': self.safe_float(order, 'amount'),
             'trades': None,
-            'fee': {
-                'currency': feeCurrency,
-                'cost': None,
-            },
+            'fee': self.calculate_fee(marketId, 'limit', self.safe_string(order, 'type'), self.safe_float(order, 'amount'), self.safe_float(order, 'price')),
             'info': order,
-        }    
+        }      
 
     def fetch_closed_orders(self, symbol = None, since = None, limit = None, params = {}):
         self.load_markets()
@@ -288,23 +286,64 @@ class birake(Exchange):
         params = 'market={}&amount={}&type={}&price={}'.format(
             market['id'],
             self.amount_to_precision(symbol, amount),
-            ordType,
+            side,
             price)        
 
         response = self.privatePostAddorder(params)
         openedOrders = self.safe_value(response, 'open')
+        filledOrders = self.safe_value(response, 'filled')
         order = None
-        if openedOrders is not None and isinstance(openedOrders, list):
-            order = openedOrders[0]
-        order = self.parse_order(order, market)        
-        id = self.safe_string(order, 'id')
+        id = None
+        openAmount = 0
+        totalCost = 0
+        if openedOrders is not None and isinstance(openedOrders, list) and len(openedOrders) >= 1:
+            order = openedOrders[0]            
+            id = self.safe_string(order, 'id')
+            openAmount = order['amount']
+            totalCost += float(order['price']) * openAmount
+        filledAmount = 0    
+        if filledOrders is not None and isinstance(filledOrders, list):
+            for trade in filledOrders:
+                if order is None:
+                    order = trade                      
+                    id = self.safe_string(order, 'id')
+                filledAmount += trade['amount']
+                totalCost += float(trade['price']) * trade['amount']
+        order['market'] = symbol
+        order = self.parse_order(order, market)
+        amount = max(amount, openAmount + filledAmount)
+        order['amount'] = amount
+        order['remaining'] = self.amount_to_precision(market['id'], amount - filledAmount)
+        order['side'] = side
+        order['average'] = totalCost / amount
+        order['price'] = price
+        order['status'] = 'open'
         self.orders[id] = order
-        return order    
+        return order
 
     def cancel_order(self, id, symbol = None, params = {}):
         params = "orderId={}".format(id)
         response = self.privatePostCancel(params)
         return response 
+
+    def fetch_order(self, id, symbol = None, params = {}):                
+        openOrders = self.fetch_open_orders()
+        for order in openOrders:
+            if order['id'] == id:
+                order['status'] = 'open'
+                return order    
+        raise InvalidOrder('Warning: Order id ' + id + ' is not found in open orders. Maybe the order is already closed.')
+
+    def calculate_fee(self, symbol, type, side, amount, price, takerOrMaker='taker', params={}):
+        self.load_markets()
+        market = self.markets[symbol]
+        rate = market[takerOrMaker]
+        return {
+            'rate': rate,
+            'type': takerOrMaker,
+            'currency': market['quote'],
+            'cost': float(self.fee_to_precision(symbol, rate * amount)),
+        }
 
     def sign(self, path, api = 'public', method = 'GET', params = {}, headers = None, body = None):
         url = self.urls['api'][api]
@@ -319,7 +358,7 @@ class birake(Exchange):
         if api is not 'public':
             headers = {
                 "birake-user": self.user,
-                "birake-authorization": self.authorization,
+                "birake-authorization": self.password,
                 'Content-Type': "application/x-www-form-urlencoded"
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}

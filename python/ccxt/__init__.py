@@ -108,7 +108,7 @@ from ccxt.btctradeim import btctradeim                      # noqa: F401
 from ccxt.btctradeua import btctradeua                      # noqa: F401
 from ccxt.btcturk import btcturk                            # noqa: F401
 from ccxt.buda import buda                                  # noqa: F401
-from ccxt.bw import bw                                      # noqa: F401
+# from ccxt.bw import bw                                      # noqa: F401
 from ccxt.bytetrade import bytetrade                        # noqa: F401
 from ccxt.cex import cex                                    # noqa: F401
 from ccxt.chilebit import chilebit                          # noqa: F401
@@ -192,6 +192,7 @@ from ccxt.xbtce import xbtce                                # noqa: F401
 from ccxt.yobit import yobit                                # noqa: F401
 from ccxt.zaif import zaif                                  # noqa: F401
 from ccxt.zb import zb                                      # noqa: F401
+from ccxt.birake import birake                              # noqa: F401
 
 exchanges = [
     '_1btcxe',
@@ -206,6 +207,7 @@ exchanges = [
     'binance',
     'binanceje',
     'binanceus',
+    'birake',
     'bit2c',
     'bitbank',
     'bitbay',
@@ -235,7 +237,7 @@ exchanges = [
     'btctradeua',
     'btcturk',
     'buda',
-    'bw',
+    # 'bw',
     'bytetrade',
     'cex',
     'chilebit',
