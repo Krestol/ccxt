@@ -254,6 +254,8 @@ class Exchange(BaseExchange):
         if not self.has['fetchTrades']:
             raise NotSupported('fetch_ohlcv() not implemented yet')
         await self.load_markets()
+        if self.id == "southxchange":
+            return await self.fetch_ohlcvs(symbol, timeframe, since, limit, params)
         trades = await self.fetch_trades(symbol, since, limit, params)
         return self.build_ohlcv(trades, timeframe, since, limit)
 

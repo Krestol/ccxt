@@ -4,7 +4,11 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+from ccxt.base.errors import InvalidOrder
 import hashlib
+import time
+import datetime
+import arrow
 
 
 class southxchange(Exchange):
@@ -36,6 +40,7 @@ class southxchange(Exchange):
                         'prices',
                         'book/{symbol}',
                         'trades/{symbol}',
+                        'history/{params}/{start}/{end}/{periods}',
                     ],
                 },
                 'private': {
@@ -225,6 +230,7 @@ class southxchange(Exchange):
         type = 'limit'
         side = self.safe_string_lower(order, 'Type')
         id = self.safe_string(order, 'Code')
+        fee = self.calculate_fee(symbol, type, side, amount, price)
         result = {
             'info': order,
             'id': id,
@@ -240,7 +246,7 @@ class southxchange(Exchange):
             'filled': filled,
             'remaining': remaining,
             'status': status,
-            'fee': None,
+            'fee': fee,
         }
         return result
 
@@ -252,6 +258,16 @@ class southxchange(Exchange):
         response = await self.privatePostListOrders(params)
         return self.parse_orders(response, market, since, limit)
 
+    async def fetch_order(self, id, symbol=None, since=None, limit=None, params={}):
+        await self.load_markets()
+        market = self.market(symbol)
+        response = await self.privatePostListOrders(params)
+        orders = self.parse_orders(response, market, since, limit)
+        for order in orders:
+            if id.find(order['id']) != -1:
+                return order
+        raise InvalidOrder('Warning: Order id ' + id + ' is not found in open orders. Maybe the order is already closed.')
+    
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
@@ -330,3 +346,28 @@ class southxchange(Exchange):
                 'Hash': self.hmac(self.encode(body), self.encode(self.secret), hashlib.sha512),
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
+
+    async def fetch_ohlcvs(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        if limit is None:
+            limit = 500
+        end = int(time.time() * 1000)
+        timeframe_msecs = Exchange.parse_timeframe(timeframe) * 1000
+        request = {
+            'params': symbol,
+            'start': int(end - timeframe_msecs * limit - timeframe_msecs),
+            'end': end,
+            'periods': limit
+        }
+        ohlcvs = await self.publicGetHistoryParamsStartEndPeriods(self.extend(request, {}))
+
+        result = []
+        for i in range(0, len(ohlcvs)):
+            timestamp = arrow.get(ohlcvs[i]["Date"]).timestamp * 1000
+            close = ohlcvs[i]["PriceClose"]
+            high = ohlcvs[i]["PriceHigh"]
+            low = ohlcvs[i]["PriceLow"]
+            open = ohlcvs[i]["PriceOpen"]
+            volume = ohlcvs[i]["Volume"]
+            result.append([timestamp,open,high,low,close,volume])
+
+        return result

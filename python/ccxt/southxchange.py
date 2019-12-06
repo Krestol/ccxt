@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.base.exchange import Exchange
+from ccxt.base.errors import InvalidOrder
 import hashlib
 
 
@@ -64,6 +65,22 @@ class southxchange(Exchange):
                 'SMT': 'SmartNode',
                 'MTC': 'Marinecoin',
             },
+            'timeframes': {
+                '1m': '1',
+                '5m': '5',
+                '30m': '30',
+                '1h': '60',
+                '6h': '360',
+                '12h': '720',
+                '1d': '1440',
+                '1w': '10080',
+            },
+            'precision': {
+                'amount': 8,
+                'price': 8,
+                'base': 8,
+                'quote': 8,               
+            },
         })
 
     def fetch_markets(self, params={}):
@@ -84,7 +101,7 @@ class southxchange(Exchange):
                 'quote': quote,
                 'baseId': baseId,
                 'quoteId': quoteId,
-                'active': None,
+                'active': True,
                 'info': market,
             })
         return result
@@ -225,6 +242,7 @@ class southxchange(Exchange):
         type = 'limit'
         side = self.safe_string_lower(order, 'Type')
         id = self.safe_string(order, 'Code')
+        fee = self.calculate_fee(symbol, type, side, amount, price)
         result = {
             'info': order,
             'id': id,
@@ -240,7 +258,7 @@ class southxchange(Exchange):
             'filled': filled,
             'remaining': remaining,
             'status': status,
-            'fee': None,
+            'fee': fee,
         }
         return result
 
@@ -252,6 +270,18 @@ class southxchange(Exchange):
         response = self.privatePostListOrders(params)
         return self.parse_orders(response, market, since, limit)
 
+    def fetch_order(self, id, symbol=None, since=None, limit=None, params={}):
+        self.load_markets()
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+        response = self.privatePostListOrders(params)
+        orders = self.parse_orders(response, market, since, limit)
+        for order in orders:
+            if id.find(order['id']) != -1:
+                return order
+        raise InvalidOrder('Warning: Order id ' + id + ' is not found in open orders. Maybe the order is already closed.')
+    
     def create_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()
         market = self.market(symbol)
@@ -264,9 +294,17 @@ class southxchange(Exchange):
         if type == 'limit':
             request['limitPrice'] = price
         response = self.privatePostPlaceOrder(self.extend(request, params))
+        fee = self.calculate_fee(symbol, type, side, amount, price)
         return {
             'info': response,
             'id': str(response),
+            'symbol': symbol,
+            'type': type,
+            'side': side,
+            'price': price,
+            'amount': amount,
+            'status': 'open',
+            'fee': fee,
         }
 
     def cancel_order(self, id, symbol=None, params={}):
@@ -330,3 +368,23 @@ class southxchange(Exchange):
                 'Hash': self.hmac(self.encode(body), self.encode(self.secret), hashlib.sha512),
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
+
+    def calculate_fee(self, symbol, type, side, amount, price, takerOrMaker="taker", params={}):
+        self.load_markets()
+        market = self.markets[symbol]
+        key = "quote"
+        rate = market[takerOrMaker]
+        cost = amount * rate
+        if side == "sell":
+            cost *= price
+        else:
+            key = "base"
+            precision = market["precision"]["amount"]
+        cost = float(self.cost_to_precision(symbol, amount * rate))
+        fee = {
+            "type": takerOrMaker,
+            "currency": market[key],
+            "rate": rate,
+            "cost": cost,
+        }
+        return fee
