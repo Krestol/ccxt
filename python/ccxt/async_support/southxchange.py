@@ -346,7 +346,9 @@ class southxchange(Exchange):
             }
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def fetch_ohlcvs(self, symbol, timeframe='1m', since=None, limit=500, params={}):
+    async def fetch_ohlcvs(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        if limit is None:
+            limit = 500
         end = int(time.time() * 1000)
         timeframe_msecs = Exchange.parse_timeframe(timeframe) * 1000
         request = {
