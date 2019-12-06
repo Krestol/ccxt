@@ -90,7 +90,7 @@ from ccxt.async_support.btctradeim import btctradeim                      # noqa
 from ccxt.async_support.btctradeua import btctradeua                      # noqa: F401
 from ccxt.async_support.btcturk import btcturk                            # noqa: F401
 from ccxt.async_support.buda import buda                                  # noqa: F401
-from ccxt.async_support.bw import bw                                      # noqa: F401
+# from ccxt.async_support.bw import bw                                      # noqa: F401
 from ccxt.async_support.bytetrade import bytetrade                        # noqa: F401
 from ccxt.async_support.cex import cex                                    # noqa: F401
 from ccxt.async_support.chilebit import chilebit                          # noqa: F401
@@ -174,6 +174,7 @@ from ccxt.async_support.xbtce import xbtce                                # noqa
 from ccxt.async_support.yobit import yobit                                # noqa: F401
 from ccxt.async_support.zaif import zaif                                  # noqa: F401
 from ccxt.async_support.zb import zb                                      # noqa: F401
+from ccxt.async_support.graviex import graviex                            # noqa: F401
 
 exchanges = [
     '_1btcxe',
@@ -218,7 +219,7 @@ exchanges = [
     'btctradeua',
     'btcturk',
     'buda',
-    'bw',
+    # 'bw',
     'bytetrade',
     'cex',
     'chilebit',
@@ -302,6 +303,7 @@ exchanges = [
     'yobit',
     'zaif',
     'zb',
+    'graviex'
 ]
 
 base = [
