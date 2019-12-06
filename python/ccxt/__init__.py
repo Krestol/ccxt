@@ -192,6 +192,7 @@ from ccxt.xbtce import xbtce                                # noqa: F401
 from ccxt.yobit import yobit                                # noqa: F401
 from ccxt.zaif import zaif                                  # noqa: F401
 from ccxt.zb import zb                                      # noqa: F401
+from ccxt.birake import birake                              # noqa: F401
 from ccxt.graviex import graviex                            # noqa: F401
 
 exchanges = [
@@ -207,6 +208,7 @@ exchanges = [
     'binance',
     'binanceje',
     'binanceus',
+    'birake',
     'bit2c',
     'bitbank',
     'bitbay',
