@@ -230,6 +230,7 @@ class southxchange(Exchange):
         type = 'limit'
         side = self.safe_string_lower(order, 'Type')
         id = self.safe_string(order, 'Code')
+        fee = self.calculate_fee(symbol, type, side, amount, price)
         result = {
             'info': order,
             'id': id,
@@ -245,7 +246,7 @@ class southxchange(Exchange):
             'filled': filled,
             'remaining': remaining,
             'status': status,
-            'fee': None,
+            'fee': fee,
         }
         return result
 

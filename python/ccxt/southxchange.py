@@ -294,6 +294,7 @@ class southxchange(Exchange):
         if type == 'limit':
             request['limitPrice'] = price
         response = self.privatePostPlaceOrder(self.extend(request, params))
+        fee = self.calculate_fee(symbol, type, side, amount, price)
         return {
             'info': response,
             'id': str(response),
@@ -303,7 +304,7 @@ class southxchange(Exchange):
             'price': price,
             'amount': amount,
             'status': 'open',
-            'fee': None,
+            'fee': fee,
         }
 
     def cancel_order(self, id, symbol=None, params={}):
