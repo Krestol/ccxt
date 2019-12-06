@@ -28,7 +28,7 @@ class graviex(Exchange):
             'rateLimit': 1000,
             'has': {
                 'createOrder': True,
-                'createMarketOrder': False,
+                'createMarketOrder': True,
                 'createLimitOrder': False,
                 'createDepositAddress': True,
                 'deposit': True,
